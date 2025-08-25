@@ -16,7 +16,7 @@ class SafeDict(dict):
 
 def parse_llm_output(output: str) -> dict:
     """
-    解析模型输出成 Thought / Action / Action Input / Answer
+    解析模型输出成 Thought / Action / Action Input / Answer，多行内容也能解析
     """
     result = {
         "thought": None,
@@ -26,35 +26,40 @@ def parse_llm_output(output: str) -> dict:
     }
 
     current_field = None
-    answer_lines = []
+    field_lines = {"thought": [], "action": [], "action_input": [], "answer": []}
 
     lines = output.split("\n")
     for line in lines:
         line_strip = line.strip()
         if line_strip.startswith("Thought:"):
             current_field = "thought"
-            result["thought"] = line_strip[len("Thought:"):].strip()
+            field_lines[current_field].append(line_strip[len("Thought:"):].strip())
         elif line_strip.startswith("Action:"):
             current_field = "action"
-            result["action"] = line_strip[len("Action:"):].strip()
+            field_lines[current_field].append(line_strip[len("Action:"):].strip())
         elif line_strip.startswith("Action Input:"):
             current_field = "action_input"
-            try:
-                result["action_input"] = json.loads(line_strip[len("Action Input:"):].strip())
-            except:
-                result["action_input"] = None
+            field_lines[current_field].append(line_strip[len("Action Input:"):].strip())
         elif line_strip.startswith("Answer:"):
             current_field = "answer"
-            answer_lines.append(line_strip[len("Answer:"):].strip())
+            field_lines[current_field].append(line_strip[len("Answer:"):].strip())
         else:
-            # 如果是 Answer 后续行，也要加入 answer
-            if current_field == "answer":
-                answer_lines.append(line_strip)
+            if current_field:
+                field_lines[current_field].append(line_strip)
 
-    if answer_lines:
-        result["answer"] = "\n".join(answer_lines)
+    # 处理结果
+    result["thought"] = "\n".join(field_lines["thought"]).strip() or None
+    result["action"] = "\n".join(field_lines["action"]).strip() or None
+    # 尝试解析 Action Input
+    if field_lines["action_input"]:
+        try:
+            result["action_input"] = json.loads("\n".join(field_lines["action_input"]))
+        except:
+            result["action_input"] = None
+    result["answer"] = "\n".join(field_lines["answer"]).strip() or None
 
     return result
+
 
 
 def run_agent(request, max_steps: int = 50):
@@ -67,7 +72,6 @@ def run_agent(request, max_steps: int = 50):
     log_step("Agent started")
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
     SafeDict(
-        task_description=TASK_description,
         extra_instructions=user_task,
         tools_info=tools_info
     )
@@ -78,7 +82,7 @@ def run_agent(request, max_steps: int = 50):
 
     for step in range(max_steps):
         # 1️⃣ 模型生成 Thought / Action / Action Input / Answer
-        output = llm.generate(SYSTEM_PROMPT, USER_PROMPT)
+        output = llm.generate(SYSTEM_PROMPT, TASK_description,USER_PROMPT)
         parsed = parse_llm_output(output)
         # print("大模型输出",output)
 
@@ -106,9 +110,18 @@ def run_agent(request, max_steps: int = 50):
             except Exception as e:
                 observation = f"工具调用失败: {e}"
 
+        print("工具返回结果",observation)
         # 4️⃣ 将本轮 Thought/Action/Observation 加入历史
-        step_record = f"Thought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {observation}"
+        step_record = f"第{step+1}轮:\nThought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {observation}"
         history.append(step_record)
+        USER_PROMPT=USER_PROMPT_TEMPLATE.format_map(
+        SafeDict(
+        extra_instructions=user_task,
+        tools_info=tools_info,
+        latest_history=history
+        )
+)
+
         # print("工具返回值：",observation)
 
     # memory.save_context(user_prompt, history)

@@ -6,15 +6,15 @@ class ToolManager:
         """
         self.tools = tools or {}
 
-    def call(self, name, **kwargs):
+    def call(self, tool_name, **kwargs):
         """
         调用已注册的工具
         """
-        if name not in self.tools:
-            raise Exception(f"Tool {name} not found")
+        if tool_name not in self.tools:
+            raise Exception(f"Tool {tool_name} not found")
 
-        func = self.tools[name].get("func")
+        func = self.tools[tool_name].get("func")
         if not func:
-            raise Exception(f"Tool {name} 没有实现调用函数")
+            raise Exception(f"Tool {tool_name} 没有实现调用函数")
 
         return func(**kwargs)

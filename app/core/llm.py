@@ -17,13 +17,16 @@ class LLM:
             api_key=api_key
         )
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, assistant_prompt: str, user_prompt: str) -> str:
         """
         生成模型输出
-        user_prompt 已经包含用户任务、历史摘要、最近历史、工具信息
+        system_prompt: 系统规则/输出格式
+        assistant_prompt: 固定操作步骤/行为准则
+        user_prompt: 用户任务、历史摘要、最近历史、工具信息
         """
         messages = [
             {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": assistant_prompt},
             {"role": "user", "content": user_prompt}
         ]
 

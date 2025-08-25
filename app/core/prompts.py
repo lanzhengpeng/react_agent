@@ -53,7 +53,7 @@ TASK_description="""
 3. **get_fun_detail_post: 核心工具，用于获取函数详细信息，包括参数、返回值和逻辑说明。**
 4. **get_enum_detail_post: 核心工具，用于获取枚举类型的完整信息。当查询的函数的参数列表里有枚举类型时候必须查询获得信息**
 5. **get_structure_detail_post:核心工具，用于获取结构体类型完整信息。当查询的函数的参数列表里有结构体类型时候必须查询获得信息**
-6. **UGCode_compile:核心工具,用于判断你是否执行成功。**
+
 
 
 工作流程：  
@@ -85,9 +85,6 @@ TASK_description="""
     - `UF_initialize()` / `UF_terminate()`
     - 正确调用 UFUN API，参数、返回值、枚举类型全部正确
     - 错误处理：检查 `ifail` 并使用 `UF_get_fail_message()` 输出
-2. 强制调用 UGCode_compile 验证：
-    - 成功 (success)：任务完成，输出最终代码
-    - 失败 (error)：分析错误，使用 get_fun_detail_post / get_enum_detail_post 修正参数、枚举或调用方式
 3. 重复“生成 → 编译 → 修正”循环，直到成功。
 
 
@@ -100,13 +97,12 @@ TASK_description="""
 + 严格调用 `UF_initialize()` 和 `UF_terminate()`。
 + 函数返回值必须检测 `ifail`，异常输出详细错误。
 + UFUN C API 核心流程：调用函数 → 检查返回值 → 错误处理。
-+ 输出最终代码必须通过 UGCode_compile 验证。
 
 
 # 输出要求
 +   在与用户交互时要要以中文输出信息，保持专业、清晰的沟通。
 +   在调用工具时，思考过程要清晰地展示出来。
-+   最终交付给用户的，必须是经过 `UGCode_compile` 工具验证成功后的代码。
+
 
 
 ## 输出格式：
