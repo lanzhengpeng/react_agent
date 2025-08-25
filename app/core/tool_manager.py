@@ -1,10 +1,20 @@
-# 工具调用统一管理
 class ToolManager:
-    def __init__(self):
-        self.tools = {}
-    def register(self, name, func):
-        self.tools[name] = func
-    def call(self, name, *args, **kwargs):
-        if name in self.tools:
-            return self.tools[name](*args, **kwargs)
-        raise Exception(f"Tool {name} not found")
+    def __init__(self, tools: dict = None):
+        """
+        tools: 可选，预先注册好的工具字典
+        格式：{ tool_name: { "func": callable, "description": str, "input_schema": dict } }
+        """
+        self.tools = tools or {}
+
+    def call(self, name, **kwargs):
+        """
+        调用已注册的工具
+        """
+        if name not in self.tools:
+            raise Exception(f"Tool {name} not found")
+
+        func = self.tools[name].get("func")
+        if not func:
+            raise Exception(f"Tool {name} 没有实现调用函数")
+
+        return func(**kwargs)

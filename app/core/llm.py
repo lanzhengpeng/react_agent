@@ -3,7 +3,7 @@ from typing import List, Optional
 import openai  # 假设你的自研大模型 SDK 和 openai 接口兼容
 
 class LLM:
-    def __init__(self, model_name: str = "gpt-4", temperature: float = 0.7,
+    def __init__(self, model_name: str = "DeepSeek-R1-Distill-Qwen-671B", temperature: float = 0.7,
                  base_url: str = None, api_key: str = None):
         self.model_name = model_name
         self.temperature = temperature
@@ -17,14 +17,15 @@ class LLM:
             api_key=api_key
         )
 
-    def generate(self, system_prompt: str, user_prompt: str, history: Optional[List[str]] = None) -> str:
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
         """
         生成模型输出
+        user_prompt 已经包含用户任务、历史摘要、最近历史、工具信息
         """
-        messages = [{"role": "system", "content": system_prompt}]
-        for h in history or []:
-            messages.append({"role": "user", "content": h})
-        messages.append({"role": "user", "content": user_prompt})
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
 
         # 调用模型
         response = self.client.chat.completions.create(
@@ -33,3 +34,4 @@ class LLM:
             temperature=self.temperature
         )
         return response.choices[0].message.content
+
