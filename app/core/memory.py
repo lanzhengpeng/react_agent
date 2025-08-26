@@ -28,28 +28,35 @@ class Memory:
         """获取摘要历史（list）"""
         return self.summary_history
 
-    def get_summary_prompt(self):
-        """拼接摘要历史成字符串，用于 prompt"""
-        parts = []
-        for i, summary in enumerate(self.summary_history, start=1):
-            parts.append(f"第{i}轮: {summary}")
-        return "\n".join(parts)
-
     def clear(self):
         """清空历史"""
         self.full_history = []
         self.summary_history = []
 
-    def load_context(self, user_prompt: str = "") -> list:
+    def get_combined_history(self, recent_rounds: int = 5) -> str:
         """
-        返回当前历史上下文，供 LLM 使用
-        user_prompt: 用户初始任务，可作为第一条历史
-        返回一个列表，每条是字符串
+        获取组合历史文本：
+        - 最近 recent_rounds 轮保持完整信息
+        - 更早轮次只保留摘要
+        - 返回字符串，可直接喂给大模型
         """
-        history = []
-        if user_prompt:
-            history.append(f"用户任务: {user_prompt}")
-        # 可以选择拼接摘要或者完整历史，这里默认用摘要
-        if self.summary_history:
-            history.append(self.get_summary_prompt())
-        return history
+        total_rounds = len(self.full_history)
+        lines = []
+
+        if total_rounds <= recent_rounds:
+            # 不足 recent_rounds，全都保留完整
+            history_to_use = self.full_history
+        else:
+            # 更早轮次只保留摘要
+            lines.extend(self.summary_history[:total_rounds - recent_rounds])
+            history_to_use = self.full_history[-recent_rounds:]
+
+        # 处理最近几轮完整信息
+        for item in history_to_use:
+            line = f"Round {item.get('round')}: Thought: {item.get('thought')}, Action: {item.get('action')}, ActionInput: {item.get('action_input')}, Observation: {item.get('observation')}"
+            lines.append(line)
+
+        # 返回拼接后的文本
+        return "\n".join(lines)
+
+
