@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from routers import agent,user
-from common.database import init_db
+from middleware.auth_middleware import auth_middleware
 
-init_db()  # 确保 User / Tool / Memory 表存在
 
 app = FastAPI()
+# 注册中间件
+app.middleware("http")(auth_middleware)
 
 app.include_router(agent.router)
 app.include_router(user.router)

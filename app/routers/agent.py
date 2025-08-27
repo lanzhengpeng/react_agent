@@ -16,9 +16,7 @@ gv = GlobalVars()
 gv.set("tools", {})
 gv.set("tools_info",{})
 
-
-router = APIRouter()
-
+router = APIRouter(prefix="/agent", tags=["agent"])
 # 内存存储工具（可换成DB）
 registered_tools: Dict[str, dict] = {}
 
@@ -53,7 +51,6 @@ from fastapi import FastAPI, APIRouter
 from fastapi.responses import StreamingResponse
 import json
 
-router = APIRouter()
 
 @router.post("/run_agent_stream")
 def run_agent_stream_endpoint(request: AgentRequest):
