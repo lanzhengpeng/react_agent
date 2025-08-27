@@ -120,14 +120,15 @@ def run_agent(request, max_steps: int = 50):
             except Exception as e:
                 observation = f"工具调用失败: {e}"
         # 压缩提示词
-        compress_prompt = COMPRESS_PROMPT.format_map({"Observation": observation})
+        compress_prompt = COMPRESS_PROMPT.format_map(
+            {"Observation": observation})
         compress_observation = llm.compress_observation(compress_prompt)
         # 4️⃣ 将本轮 Thought/Action/Observation 加入历史
         #step_record = f"第{step+1}轮:\nThought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {observation}"
         summary = f"第{step+1}轮:\nThought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {compress_observation}"
         # history.append(step_record)
-        memory.add(thought, action, action_input,observation,summary)
-        
+        memory.add(thought, action, action_input, observation, summary)
+
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(extra_instructions=user_task,
                      tools_info=tools_info,
@@ -137,3 +138,62 @@ def run_agent(request, max_steps: int = 50):
 
     # memory.save_context(user_prompt, history)
     return {"result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
+
+import json
+
+def run_agent_stream(request, max_steps: int = 50):
+    memory = Memory()
+    tools = gv.get("tools") or {}
+    tools.update(register_history_tools(memory))
+    gv.set("tools", tools)
+
+    tool_manager = ToolManager(gv.get("tools"))
+    llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
+
+    user_task = request.get("task", "")
+    tools_info = gv.get("tools_info") or {}
+    tools_info.setdefault("tools", [])
+    tools_info["tools"].extend(history_tool_descriptor()["tools"])
+
+    USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
+        SafeDict(extra_instructions=user_task, tools_info=tools_info)
+    )
+
+    for step in range(max_steps):
+        # 调用 LLM 获取完整输出（非流式）
+        llm_output = llm.generate(SYSTEM_PROMPT, TASK_description, USER_PROMPT)
+        parsed = parse_llm_output(llm_output)
+
+        # 只输出 Thought，逐字流式
+        thought = parsed.get("thought") or ""
+        for char in thought:
+            yield char
+
+        # 如果已有最终答案就逐字输出
+        if parsed.get("answer"):
+            for char in f"{parsed['answer']}":
+                yield char
+            return
+
+        # 执行工具（忽略返回值，不输出 Observation）
+        if parsed.get("action"):
+            try:
+                tool_manager.call(parsed["action"], **(parsed.get("action_input") or {}))
+            except Exception:
+                pass
+
+        # 更新用户提示，加入历史
+        USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
+            SafeDict(
+                extra_instructions=user_task,
+                tools_info=tools_info,
+                latest_history=memory.get_combined_history()
+            )
+        )
+
+    # max_steps 结束，逐字输出提示
+    for char in "未得到最终答案，请增加 max_steps 或检查模型输出":
+        yield char
+
+
+

@@ -1,5 +1,5 @@
 # app/core/llm.py
-from typing import List, Optional
+from typing import Generator
 import openai  # 假设你的自研大模型 SDK 和 openai 接口兼容
 
 
@@ -19,35 +19,47 @@ class LLM:
         # 初始化客户端
         self.client = openai.OpenAI(base_url=base_url, api_key=api_key)
 
+    # 同步生成（保留原方法）
     def generate(self, system_prompt: str, assistant_prompt: str,
                  user_prompt: str) -> str:
-        """
-        生成模型输出
-        system_prompt: 系统规则/输出格式
-        assistant_prompt: 固定操作步骤/行为准则
-        user_prompt: 用户任务、历史摘要、最近历史、工具信息
-        """
-        messages = [{
-            "role": "system",
-            "content": system_prompt
-        }, {
-            "role": "assistant",
-            "content": assistant_prompt
-        }, {
-            "role": "user",
-            "content": user_prompt
-        }]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": assistant_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
 
-        # 调用模型
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
-            temperature=self.temperature)
+            temperature=self.temperature
+        )
         return response.choices[0].message.content
+
+    # 假设这是 LLM 类的一部分
+    def generate_stream(self, system_prompt: str, assistant_prompt: str, user_prompt: str):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": assistant_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # 直接使用 client 的流式接口
+        stream = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,
+            stream=True,
+            temperature=self.temperature,
+        )
+
+        for chunk in stream:
+            # 判断 delta.content 是否存在
+            delta_content = getattr(chunk.choices[0].delta, "content", None)
+            if delta_content is not None:
+                yield delta_content
+
+
+    # Observation 压缩保持同步
     def compress_observation(self, user_prompt: str) -> str:
-        """
-        使用模型对单条 Observation 进行压缩
-        """
         messages = [
             {"role": "system", "content": "你是一个信息压缩助手"},
             {"role": "assistant", "content": "请根据提示词对 Observation 进行压缩"},
@@ -59,5 +71,4 @@ class LLM:
             messages=messages,
             temperature=self.temperature
         )
-        # 返回压缩后的 Observation
         return response.choices[0].message.content
