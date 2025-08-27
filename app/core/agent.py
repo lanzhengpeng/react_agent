@@ -62,7 +62,7 @@ def parse_llm_output(output: str) -> dict:
 
 
 
-def run_agent(request, max_steps: int = 50):
+def run_agent(request,max_steps: int = 50):
     memory = Memory()
     # 获取全局工具字典
     tools = gv.get("tools") or {}
