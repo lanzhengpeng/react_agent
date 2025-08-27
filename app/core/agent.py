@@ -139,15 +139,75 @@ def run_agent(request, max_steps: int = 50):
     # memory.save_context(user_prompt, history)
     return {"result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
 
-import json
+
+def parse_llm_output_stream(output_stream):
+    """
+    流式解析模型输出，先收集所有块，解析后再流式返回 Thought / Action / Action Input / Answer
+    """
+    # 收集所有流式输入块
+    full_output = ""
+    for chunk in output_stream:
+        full_output += chunk  # 无进度通知，直接收集
+
+    # 使用原始的 parse_llm_output 逻辑解析完整输出
+    result = {
+        "thought": None,
+        "action": None,
+        "action_input": None,
+        "answer": None
+    }
+    current_field = None
+    field_lines = {"thought": [], "action": [], "action_input": [], "answer": []}
+
+    lines = full_output.split("\n")
+    for line in lines:
+        line_strip = line.strip()
+        if line_strip.startswith("Thought:"):
+            current_field = "thought"
+            field_lines[current_field].append(line_strip[len("Thought:"):].strip())
+        elif line_strip.startswith("Action:"):
+            current_field = "action"
+            field_lines[current_field].append(line_strip[len("Action:"):].strip())
+        elif line_strip.startswith("Action Input:"):
+            current_field = "action_input"
+            field_lines[current_field].append(line_strip[len("Action Input:"):].strip())
+        elif line_strip.startswith("Answer:"):
+            current_field = "answer"
+            field_lines[current_field].append(line_strip[len("Answer:"):].strip())
+        else:
+            if current_field:
+                field_lines[current_field].append(line_strip)
+
+    # 处理结果
+    result["thought"] = "\n".join(field_lines["thought"]).strip() or None
+    result["action"] = "\n".join(field_lines["action"]).strip() or None
+    if field_lines["action_input"]:
+        try:
+            result["action_input"] = json.loads("\n".join(field_lines["action_input"]))
+        except:
+            result["action_input"] = None
+    result["answer"] = "\n".join(field_lines["answer"]).strip() or None
+
+    # 流式返回解析结果的每个部分
+    if result["thought"]:
+        yield {"status": "thought", "value": result["thought"]}
+    if result["action"]:
+        yield {"status": "action", "value": result["action"]}
+    if result["action_input"]:
+        yield {"status": "action_input", "value": result["action_input"]}
+    if result["answer"]:
+        yield {"status": "answer", "value": result["answer"]}
 
 def run_agent_stream(request, max_steps: int = 50):
+    """
+    流式运行 agent，逐块返回 Thought, Action, Action Input, Observation 和 Answer
+    """
     memory = Memory()
     tools = gv.get("tools") or {}
     tools.update(register_history_tools(memory))
     gv.set("tools", tools)
-
     tool_manager = ToolManager(gv.get("tools"))
+
     llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
 
     user_task = request.get("task", "")
@@ -155,45 +215,69 @@ def run_agent_stream(request, max_steps: int = 50):
     tools_info.setdefault("tools", [])
     tools_info["tools"].extend(history_tool_descriptor()["tools"])
 
+    yield {"status": "info", "message": "Agent 已启动"}
+    log_step("Agent started")
+
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(extra_instructions=user_task, tools_info=tools_info)
-    )
+        SafeDict(extra_instructions=user_task, tools_info=tools_info))
 
     for step in range(max_steps):
-        # 调用 LLM 获取完整输出（非流式）
-        llm_output = llm.generate(SYSTEM_PROMPT, TASK_description, USER_PROMPT)
-        parsed = parse_llm_output(llm_output)
+        yield {"status": "step", "step": step + 1}
+        log_step(f"Step {step + 1}")
 
-        # 只输出 Thought，逐字流式
-        thought = parsed.get("thought") or ""
-        for char in thought:
-            yield char
+        # 1️⃣ 流式获取模型输出并解析
+        output_stream = llm.generate_stream(SYSTEM_PROMPT, TASK_description, USER_PROMPT)
+        thought, action, action_input, answer = None, None, None, None
 
-        # 如果已有最终答案就逐字输出
-        if parsed.get("answer"):
-            for char in f"{parsed['answer']}":
-                yield char
+        for parsed in parse_llm_output_stream(output_stream):
+            yield parsed
+            if parsed["status"] == "thought":
+                thought = parsed["value"]
+            elif parsed["status"] == "action":
+                action = parsed["value"]
+            elif parsed["status"] == "action_input":
+                action_input = parsed["value"]
+            elif parsed["status"] == "answer":
+                answer = parsed["value"]
+
+        # 2️⃣ 如果有 Answer，保存并返回
+        if answer:
+            memory.add(thought, action, action_input, None, None)
+            yield {"status": "final", "result": answer}
             return
 
-        # 执行工具（忽略返回值，不输出 Observation）
-        if parsed.get("action"):
+        # 3️⃣ 行动 Action 工具
+        observation = None
+        if action:
             try:
-                tool_manager.call(parsed["action"], **(parsed.get("action_input") or {}))
-            except Exception:
-                pass
+                observation = tool_manager.call(action, **(action_input or {}))
+                yield {"status": "observation", "value": observation}
+                log_step(f"Observation: {observation}")
+            except Exception as e:
+                observation = f"工具调用失败: {e}"
+                yield {"status": "error", "message": observation}
+                log_step(f"Observation: {observation}")
 
-        # 更新用户提示，加入历史
+        # 4️⃣ 压缩 Observation
+        compress_prompt = COMPRESS_PROMPT.format_map({"Observation": observation or ""})
+        compress_stream = llm.compress_observation_stream(compress_prompt)
+        compress_observation = ""
+        for chunk in compress_stream:
+            if isinstance(chunk, dict) and chunk.get("status") in ["progress", "error"]:
+                yield chunk
+            else:
+                compress_observation += chunk
+                yield {"status": "compressed_observation", "value": chunk}
+        log_step(f"Compressed Observation: {compress_observation}")
+
+        # 5️⃣ 更新历史记录
+        summary = f"第{step+1}轮:\nThought: {thought or '无'}\nAction: {action or '无'}\nAction Input: {action_input or '无'}\nObservation: {compress_observation or '无'}"
+        memory.add(thought, action, action_input, observation, summary)
+
+        # 6️⃣ 更新 USER_PROMPT
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-            SafeDict(
-                extra_instructions=user_task,
-                tools_info=tools_info,
-                latest_history=memory.get_combined_history()
-            )
-        )
+            SafeDict(extra_instructions=user_task,
+                     tools_info=tools_info,
+                     latest_history=memory.get_combined_history()))
 
-    # max_steps 结束，逐字输出提示
-    for char in "未得到最终答案，请增加 max_steps 或检查模型输出":
-        yield char
-
-
-
+    yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}

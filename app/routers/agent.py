@@ -49,20 +49,28 @@ from core.agent import run_agent_stream  # 这是我们改造过的流式版本
 
 from fastapi.responses import StreamingResponse
 
+from fastapi import FastAPI, APIRouter
+from fastapi.responses import StreamingResponse
+import json
+
+router = APIRouter()
+
 @router.post("/run_agent_stream")
 def run_agent_stream_endpoint(request: AgentRequest):
+    """
+    流式运行 Agent 的 API 端点，返回 SSE 格式的流式响应
+    """
     print("收到流式请求:", request.dict())
 
     def event_stream():
         for event in run_agent_stream(request.dict()):
-            # 如果 event 是列表或者字符数组，先拼成完整字符串
-            if isinstance(event, list):
-                event = "".join(event)
-            # 直接 yield 字符串，不再用 json.dumps
-            yield event
+            if isinstance(event, dict):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            else:
+                error_event = {"status": "error", "message": f"意外的事件格式: {type(event)}"}
+                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")
-
+    return StreamingResponse(event_stream(), media_type="text/event-stream; charset=utf-8")
 
 
 # 新的批量注册接口

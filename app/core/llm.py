@@ -72,3 +72,39 @@ class LLM:
             temperature=self.temperature
         )
         return response.choices[0].message.content
+    def compress_observation_stream(self, user_prompt: str):
+        """
+        流式压缩 Observation，返回逐块生成的压缩结果
+        """
+        # 构造与原始方法相同的消息结构
+        messages = [
+            {"role": "system", "content": "你是一个信息压缩助手"},
+            {"role": "assistant", "content": "请根据提示词对 Observation 进行压缩"},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        try:
+            # 调用流式 API，假设 client 支持 stream=True
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=self.temperature,
+                stream=True  # 启用流式输出
+            )
+
+            # 逐块处理流式响应
+            for chunk in response:
+                # 提取当前块的内容（根据 API 的具体实现）
+                # 假设 chunk.choices[0].delta.content 包含增量内容
+                if hasattr(chunk, 'choices') and chunk.choices and hasattr(chunk.choices[0], 'delta') and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    if content:  # 确保内容非空
+                        yield content
+                else:
+                    # 如果当前块无内容，通知进度
+                    yield {"status": "progress", "message": "正在压缩 Observation..."}
+
+        except Exception as e:
+            # 如果流式调用失败，返回错误信息
+            yield {"status": "error", "message": f"压缩 Observation 失败: {str(e)}"}
+

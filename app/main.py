@@ -7,4 +7,5 @@ app.include_router(agent.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 使用导入字符串 "main:app" 代替直接传递 app 对象
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
