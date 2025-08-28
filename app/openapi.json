@@ -189,10 +189,109 @@
                     }
                 }
             }
+        },
+        "/get_callback_detail": {
+            "post": {
+                "summary": "Get Callback Detail",
+                "description": "根据回调函数名获取详细信息",
+                "operationId": "get_callback_detail_get_callback_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CallbackDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_union_detail": {
+            "post": {
+                "summary": "Get Union Detail",
+                "description": "根据联合体名获取详细信息",
+                "operationId": "get_union_detail_get_union_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnionDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
+            "CallbackDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Limit",
+                        "default": 10
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "CallbackDetailRequest"
+            },
             "EnumDetailRequest": {
                 "properties": {
                     "name": {
@@ -202,7 +301,7 @@
                     "limit": {
                         "type": "integer",
                         "title": "Limit",
-                        "default": 1
+                        "default": 2
                     }
                 },
                 "type": "object",
@@ -310,6 +409,31 @@
                     "name"
                 ],
                 "title": "StructureDetailRequest"
+            },
+            "UnionDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Limit",
+                        "default": 10
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "UnionDetailRequest"
             },
             "ValidationError": {
                 "properties": {

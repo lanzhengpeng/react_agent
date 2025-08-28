@@ -215,6 +215,7 @@ def parse_llm_output_stream(output_stream):
 def run_agent_stream(request, max_steps: int = 50):
     """
     流式运行 agent，逐块返回 Thought, Action, Action Input, Observation 和 Answer
+    不再返回压缩后的 Observation
     """
     memory = Memory()
 
@@ -295,23 +296,11 @@ def run_agent_stream(request, max_steps: int = 50):
                 yield {"status": "error", "message": observation}
                 log_step(f"Observation: {observation}")
 
-        # 4️⃣ 压缩 Observation
-        compress_prompt = COMPRESS_PROMPT.format_map({"Observation": observation or ""})
-        compress_stream = llm.compress_observation_stream(compress_prompt)
-        compress_observation = ""
-        for chunk in compress_stream:
-            if isinstance(chunk, dict) and chunk.get("status") in ["progress", "error"]:
-                yield chunk
-            else:
-                compress_observation += chunk
-                yield {"status": "compressed_observation", "value": chunk}
-        log_step(f"Compressed Observation: {compress_observation}")
-
-        # 5️⃣ 更新历史记录
-        summary = f"第{step+1}轮:\nThought: {thought or '无'}\nAction: {action or '无'}\nAction Input: {action_input or '无'}\nObservation: {compress_observation or '无'}"
+        # 4️⃣ 更新历史记录
+        summary = f"第{step+1}轮:\nThought: {thought or '无'}\nAction: {action or '无'}\nAction Input: {action_input or '无'}\nObservation: {observation or '无'}"
         memory.add(thought, action, action_input, observation, summary)
 
-        # 6️⃣ 更新 USER_PROMPT
+        # 5️⃣ 更新 USER_PROMPT
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(extra_instructions=user_task,
                      tools_info=tools_info,
