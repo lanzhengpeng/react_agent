@@ -10,11 +10,7 @@ from utils.openapi_to_tools_json import openapi_to_mcp_tools
 from core.global_vars import GlobalVars
 from common.auth import get_current_user
 from models.user import User
-
-# 获取全局管理器实例
-gv = GlobalVars()
-gv.set("tools", {})
-gv.set("tools_info", {})
+from core.user_vars import UserVars
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 # 内存存储工具（可换成DB）
@@ -80,16 +76,37 @@ def run_agent_stream_endpoint(request: AgentRequest, current_user: User = Depend
 
 # ------------------ 工具注册接口 ------------------
 @router.post("/register_tools", response_model=ToolRegisterResponse)
-def register_tools(request: OpenAPIRegisterRequest):
+def register_tools(request: OpenAPIRegisterRequest, current_user: User = Depends(get_current_user)):
+    """
+    为当前用户注册工具，追加到已有工具中（同名工具会覆盖）
+    """
     try:
-        gv.set("tools", parse_openapi_tools(request.openapi_json, request.base_url))
-        gv.set("tools_info", openapi_to_mcp_tools(request.openapi_json))
-        for name, info in gv.get("tools").items():
-            registered_tools[name] = info
+        uv = UserVars()
+        user_id = current_user.id
+
+        # 获取用户已有的工具（如果没有就用空字典）
+        existing_tools = uv.get(user_id, "tools", {})
+        existing_tools_info = uv.get(user_id, "tools_info", {})
+
+        # 解析请求中的工具
+        new_tools = parse_openapi_tools(request.openapi_json, request.base_url)
+        new_tools_info = openapi_to_mcp_tools(request.openapi_json)
+
+        # 追加新工具到已有工具（同名覆盖）
+        existing_tools.update(new_tools)
+        existing_tools_info.update(new_tools_info)
+
+        # 保存回 UserVars
+        uv.set(user_id, "tools", existing_tools)
+        uv.set(user_id, "tools_info", existing_tools_info)
+
+        # 如果你还想在全局 registered_tools 做映射，可以用 user_id 作为前缀
+        for name, info in new_tools.items():
+            registered_tools[f"{user_id}_{name}"] = info
 
         return ToolRegisterResponse(
             success=True,
-            message=f"成功注册 {len(gv.get('tools'))} 个工具到内存"
+            message=f"成功注册 {len(new_tools)} 个工具到用户 {current_user.username} 的内存，当前总工具数 {len(existing_tools)}"
         )
     except Exception as e:
         return ToolRegisterResponse(success=False, message=str(e))

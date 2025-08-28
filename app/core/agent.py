@@ -6,9 +6,9 @@ from utils.logger import log_step
 import json
 from core.global_vars import GlobalVars
 from core.system_tools import register_history_tools,history_tool_descriptor
-
-# 获取全局管理器实例
-gv = GlobalVars()
+from core.user_vars import UserVars
+# 获取用户全局管理器实例
+uv = UserVars()
 class SafeDict(dict):
     def __missing__(self, key):
         return ""  # 默认返回空字符串
@@ -62,39 +62,54 @@ def parse_llm_output(output: str) -> dict:
 
 
 
-def run_agent(request,max_steps: int = 50):
+def run_agent(request, max_steps: int = 50):
     memory = Memory()
-    # 获取全局工具字典
-    tools = gv.get("tools") or {}
 
-    # 注册系统工具
-    tools.update(register_history_tools(
-        memory))  # register_history_tools 返回 {tool_name: {...}}
+    # 获取当前用户 ID
+    user_id = request.get("user_id")
+    if not user_id:
+        raise ValueError("request 中必须包含 user_id")
 
-    # 更新全局变量
-    gv.set("tools", tools)
+    # 获取 UserVars 单例
+    uv = UserVars()
 
-    # 然后初始化 ToolManager
-    tool_manager = ToolManager(gv.get("tools"))
+    # 获取当前用户工具
+    tools = uv.get(user_id, "tools", {})
 
-    llm = LLM(base_url="http://112.132.229.234:8029/v1",
-              api_key="qwe")  # 你的 LLM 封装
+    # 注册系统工具（追加，不覆盖）
+    tools.update(register_history_tools(memory))
 
+    # 保存回 UserVars
+    uv.set(user_id, "tools", tools)
+
+    # 初始化 ToolManager，每个用户独立对象
+    tool_manager = uv.get(user_id, "tool_manager")
+    if not tool_manager:
+        tool_manager = ToolManager(tools)
+        uv.set(user_id, "tool_manager", tool_manager)
+    else:
+        # 如果用户已有 ToolManager，更新工具字典
+        tool_manager.tools = tools
+
+    # 获取 LLM
+    llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
+
+    # 用户任务和工具信息
     user_task = request.get("task", "")
-    tools_info = gv.get("tools_info") or {}
+    tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
     tools_info["tools"].extend(history_tool_descriptor()["tools"])
+    uv.set(user_id, "tools_info", tools_info)
 
     log_step("Agent started")
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(extra_instructions=user_task, tools_info=tools_info))
+        SafeDict(extra_instructions=user_task, tools_info=tools_info)
+    )
 
-    # history = []
     for step in range(max_steps):
         # 1️⃣ 模型生成 Thought / Action / Action Input / Answer
         output = llm.generate(SYSTEM_PROMPT, TASK_description, USER_PROMPT)
         parsed = parse_llm_output(output)
-        # print("大模型输出",output)
 
         thought = parsed["thought"]
         action = parsed["action"]
@@ -109,7 +124,6 @@ def run_agent(request,max_steps: int = 50):
 
         # 2️⃣ 如果模型已经输出最终答案，终止循环
         if answer:
-            # memory.add(thought, action, action_input)
             return {"result": answer}
 
         # 3️⃣ 执行 Action 工具
@@ -119,24 +133,23 @@ def run_agent(request,max_steps: int = 50):
                 observation = tool_manager.call(action, **(action_input or {}))
             except Exception as e:
                 observation = f"工具调用失败: {e}"
+
         # 压缩提示词
-        compress_prompt = COMPRESS_PROMPT.format_map(
-            {"Observation": observation})
+        compress_prompt = COMPRESS_PROMPT.format_map({"Observation": observation})
         compress_observation = llm.compress_observation(compress_prompt)
+
         # 4️⃣ 将本轮 Thought/Action/Observation 加入历史
-        #step_record = f"第{step+1}轮:\nThought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {observation}"
         summary = f"第{step+1}轮:\nThought: {thought}\nAction: {action}\nAction Input: {action_input}\nObservation: {compress_observation}"
-        # history.append(step_record)
         memory.add(thought, action, action_input, observation, summary)
 
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-            SafeDict(extra_instructions=user_task,
-                     tools_info=tools_info,
-                     latest_history=memory.get_combined_history()))
+            SafeDict(
+                extra_instructions=user_task,
+                tools_info=tools_info,
+                latest_history=memory.get_combined_history()
+            )
+        )
 
-        # print("工具返回值：",observation)
-
-    # memory.save_context(user_prompt, history)
     return {"result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
 
 
@@ -198,28 +211,52 @@ def parse_llm_output_stream(output_stream):
     if result["answer"]:
         yield {"status": "answer", "value": result["answer"]}
 
+
 def run_agent_stream(request, max_steps: int = 50):
     """
     流式运行 agent，逐块返回 Thought, Action, Action Input, Observation 和 Answer
     """
     memory = Memory()
-    tools = gv.get("tools") or {}
-    tools.update(register_history_tools(memory))
-    gv.set("tools", tools)
-    tool_manager = ToolManager(gv.get("tools"))
 
+    # 获取当前用户 ID
+    user_id = request.get("user_id")
+    if not user_id:
+        yield {"status": "error", "message": "request 中必须包含 user_id"}
+        return
+
+    # 获取 UserVars 单例
+    uv = UserVars()
+
+    # 获取用户工具
+    tools = uv.get(user_id, "tools", {})
+    tools.update(register_history_tools(memory))
+    uv.set(user_id, "tools", tools)
+
+    # 获取或创建 ToolManager
+    tool_manager = uv.get(user_id, "tool_manager")
+    if not tool_manager:
+        tool_manager = ToolManager(tools)
+        uv.set(user_id, "tool_manager", tool_manager)
+    else:
+        # 更新工具字典
+        tool_manager.tools = tools
+
+    # 获取 LLM
     llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
 
+    # 用户任务和工具信息
     user_task = request.get("task", "")
-    tools_info = gv.get("tools_info") or {}
+    tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
     tools_info["tools"].extend(history_tool_descriptor()["tools"])
+    uv.set(user_id, "tools_info", tools_info)
 
     yield {"status": "info", "message": "Agent 已启动"}
     log_step("Agent started")
 
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(extra_instructions=user_task, tools_info=tools_info))
+        SafeDict(extra_instructions=user_task, tools_info=tools_info)
+    )
 
     for step in range(max_steps):
         yield {"status": "step", "step": step + 1}
@@ -278,6 +315,7 @@ def run_agent_stream(request, max_steps: int = 50):
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(extra_instructions=user_task,
                      tools_info=tools_info,
-                     latest_history=memory.get_combined_history()))
+                     latest_history=memory.get_combined_history())
+        )
 
     yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
