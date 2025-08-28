@@ -243,7 +243,7 @@ def run_agent_stream(request, max_steps: int = 50):
         tool_manager.tools = tools
 
     # 获取 LLM
-    llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
+    llm = LLM(base_url=request.get("model_url"), api_key=request.get("api_key"))
 
     # 用户任务和工具信息
     user_task = request.get("task", "")

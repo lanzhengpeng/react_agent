@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import agent,user
+from routers import agent,user,tool
 from middleware.auth_middleware import auth_middleware
 
 
@@ -9,6 +9,7 @@ app.middleware("http")(auth_middleware)
 
 app.include_router(agent.router)
 app.include_router(user.router)
+app.include_router(tool.router)
 if __name__ == "__main__":
     import uvicorn
     # 使用导入字符串 "main:app" 代替直接传递 app 对象

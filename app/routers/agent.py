@@ -44,7 +44,9 @@ def run_agent_endpoint(request: AgentRequest, current_user: User = Depends(get_c
     request_dict = request.dict()
     request_dict.update({
         "user_id": current_user.id,
-        "username": current_user.username
+        "username": current_user.username,
+        "api_key":current_user.api_key,
+        "model_url":current_user.model_url
     })
 
     return run_agent(request_dict)
@@ -61,7 +63,9 @@ def run_agent_stream_endpoint(request: AgentRequest, current_user: User = Depend
     request_dict = request.dict()
     request_dict.update({
         "user_id": current_user.id,
-        "username": current_user.username
+        "username": current_user.username,
+        "api_key":current_user.api_key,
+        "model_url":current_user.model_url
     })
 
     def event_stream():
@@ -110,3 +114,5 @@ def register_tools(request: OpenAPIRegisterRequest, current_user: User = Depends
         )
     except Exception as e:
         return ToolRegisterResponse(success=False, message=str(e))
+    
+
