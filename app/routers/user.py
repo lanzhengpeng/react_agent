@@ -46,8 +46,10 @@ class LoginRequest(BaseModel):
 @router.post("/login")
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == request.username).first()
+    
+    # 登录失败返回 401
     if not user or not pwd_context.verify(request.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="用户名或密码错误")
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     access_token = create_access_token(data={"user_id": user.id, "username": user.username})
     return {
