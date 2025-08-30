@@ -7,6 +7,8 @@ import json
 from core.global_vars import GlobalVars
 from core.system_tools import register_history_tools,history_tool_descriptor
 from core.user_vars import UserVars
+from core.chat_session import add_record,get_records_by_id
+from common.database import get_db
 # 获取用户全局管理器实例
 uv = UserVars()
 class SafeDict(dict):
@@ -95,6 +97,8 @@ def run_agent(request, max_steps: int = 50):
     llm = LLM(base_url="http://112.132.229.234:8029/v1", api_key="qwe")
 
     # 用户任务和工具信息
+
+    get_records_by_id(request.get("user_id"))
     user_task = request.get("task", "")
     tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
@@ -151,6 +155,7 @@ def run_agent(request, max_steps: int = 50):
         )
 
     return {"result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
+
 
 
 def parse_llm_output_stream(output_stream):
@@ -245,8 +250,15 @@ def run_agent_stream(request, max_steps: int = 50):
     # 获取 LLM
     llm = LLM(model_name=request.get("model_name"),base_url=request.get("model_url"), api_key=request.get("api_key"))
 
+    # 获取数据库会话
+    db = next(get_db())
+    # 获取历史聊天记录（json格式）
+    chat_history = get_records_by_id(user_id,db)
     # 用户任务和工具信息
     user_task = request.get("task", "")
+    task=chat_history+user_task
+    # 讲用户信息存到数据库，方便下次获取
+    add_record(user_id,user_task,"user",db)
     tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
     tools_info["tools"].extend(history_tool_descriptor()["tools"])
@@ -256,7 +268,7 @@ def run_agent_stream(request, max_steps: int = 50):
     log_step("Agent started")
 
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(task_description=user_task, tools_info=tools_info)
+        SafeDict(task_description=task, tools_info=tools_info)
     )
     print(tools_info)
     for step in range(max_steps):
@@ -282,6 +294,7 @@ def run_agent_stream(request, max_steps: int = 50):
         if answer:
             memory.add(thought, action, action_input, None, None)
             yield {"status": "final", "result": answer}
+            add_record(user_id,answer,"assistant",db)
             return
 
         # 3️⃣ 行动 Action 工具

@@ -36,6 +36,8 @@ USER_PROMPT_TEMPLATE = """
 可用工具:
 {tools_info}
 
+**获取摘要信息使用方法：传入摘要号就可以获取了
+
 请根据系统提示词的规则生成 Thought / Action / Action Input。
 不要违反 ReAct 输出格式。
 """
