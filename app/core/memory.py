@@ -34,12 +34,6 @@ class Memory:
         self.summary_history = []
 
     def get_combined_history(self, recent_rounds: int = 5) -> str:
-        """
-        获取组合历史文本：
-        - 最近 recent_rounds 轮保持完整信息
-        - 更早轮次只保留摘要
-        - 返回字符串，可直接喂给大模型
-        """
         total_rounds = len(self.full_history)
         lines = []
 
@@ -49,6 +43,7 @@ class Memory:
         else:
             # 更早轮次只保留摘要
             lines.extend(self.summary_history[:total_rounds - recent_rounds])
+            lines.append("\n" + "=" * 40 + " 历史摘要结束，以下是最近几轮完整记录 " + "=" * 40 + "\n")
             history_to_use = self.full_history[-recent_rounds:]
 
         # 处理最近几轮完整信息
@@ -56,7 +51,7 @@ class Memory:
             line = f"Round {item.get('round')}: Thought: {item.get('thought')}, Action: {item.get('action')}, ActionInput: {item.get('action_input')}, Observation: {item.get('observation')}"
             lines.append(line)
 
-        # 返回拼接后的文本
         return "\n".join(lines)
+
 
 

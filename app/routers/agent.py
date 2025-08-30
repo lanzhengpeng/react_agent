@@ -59,16 +59,23 @@ def run_agent_stream_endpoint(request: AgentRequest, current_user: User = Depend
     """
     print("收到流式请求:", request.dict())
 
-    # 构造字典传入 run_agent_stream
-    request_dict = request.dict()
-    request_dict.update({
-        "user_id": current_user.id,
-        "username": current_user.username,
-        "api_key":current_user.api_key,
-        "model_url":current_user.model_url
-    })
-
     def event_stream():
+        # 先检查 api_key 和 model_url
+        if not current_user.api_key or not current_user.model_url:
+            error_event = {"status": "error", "message": "用户未提供 api_key 或 model_url"}
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+            return
+
+        # 构造字典传入 run_agent_stream
+        request_dict = request.dict()
+        request_dict.update({
+            "user_id": current_user.id,
+            "username": current_user.username,
+            "api_key": current_user.api_key,
+            "model_url": current_user.model_url,
+            "model_name":current_user.model_name
+        })
+
         for event in run_agent_stream(request_dict):
             if isinstance(event, dict):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
@@ -77,6 +84,33 @@ def run_agent_stream_endpoint(request: AgentRequest, current_user: User = Depend
                 yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream; charset=utf-8")
+
+
+# ------------------ 设置用户任务步骤提示词 ------------------
+class TaskStepPromptRequest(BaseModel):
+    task_step_prompt: str  # 用户自定义的任务步骤提示词
+
+class TaskStepPromptResponse(BaseModel):
+    success: bool
+    message: str
+
+@router.post("/set_task_step_prompt", response_model=TaskStepPromptResponse)
+def set_task_step_prompt_endpoint(
+    request: TaskStepPromptRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    设置当前用户的任务步骤提示词，后续 run_agent 或 run_agent_stream 会使用
+    """
+    try:
+        uv = UserVars()
+        uv.set(current_user.id, "task_step_prompt", request.task_step_prompt)
+        return TaskStepPromptResponse(success=True, message="任务步骤提示词已保存")
+    except Exception as e:
+        return TaskStepPromptResponse(success=False, message=f"保存失败: {e}")
+
+
+
 
 # ------------------ 工具注册接口 ------------------
 @router.post("/register_tools", response_model=ToolRegisterResponse)

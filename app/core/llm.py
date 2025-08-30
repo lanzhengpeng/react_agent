@@ -6,7 +6,7 @@ import openai  # 假设你的自研大模型 SDK 和 openai 接口兼容
 class LLM:
 
     def __init__(self,
-                 model_name: str = "DeepSeek-R1-Distill-Qwen-671B",
+                 model_name: str = "",
                  temperature: float = 0.7,
                  base_url: str = None,
                  api_key: str = None):

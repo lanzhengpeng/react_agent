@@ -13,5 +13,6 @@ class User(Base):
     hashed_password = Column(String(128), nullable=False)
     api_key = Column(String(128), unique=True, nullable=True)
     model_url = Column(String(256), nullable=True)  # 用户大模型服务地址
+    model_name = Column(String, nullable=True)  # 新增字段
     created_at = Column(DateTime, default=datetime.now)
     status = Column(String(20), default="active")  # 可选：active / disabled

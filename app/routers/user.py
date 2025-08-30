@@ -6,7 +6,7 @@ from models.user import User
 from pydantic import BaseModel
 from typing import Optional
 from common.auth import create_access_token
-
+from common.auth import get_current_user
 router = APIRouter(prefix="/user", tags=["user"])
 # 加密
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -57,3 +57,45 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer"
     }
+# 请求体，只需要 api_key 和 model_url model_name
+class UpdateModelRequest(BaseModel):
+    api_key: str
+    model_url: str
+    model_name: str  # 新增字段
+
+from fastapi import HTTPException
+
+@router.put("/update_model_info")
+def update_model_info(
+    request: UpdateModelRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    更新当前用户的 api_key、model_url 和 model_name
+    并在更新前测试是否可用
+    """
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 测试模型是否可用
+    import openai
+    client = openai.OpenAI(base_url=request.model_url, api_key=request.api_key)
+    try:
+        response = client.chat.completions.create(
+            model=request.model_name,
+            messages=[{"role": "user", "content": "测试"}],
+            max_tokens=1
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"api_key 或 model_url 或 model_name 无效: {e}")
+
+    # 如果测试通过，才更新数据库
+    user.api_key = request.api_key
+    user.model_url = request.model_url
+    user.model_name = request.model_name
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "更新成功", "api_key": "********", "model_url": user.model_url, "model_name": user.model_name}

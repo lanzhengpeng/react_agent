@@ -103,7 +103,7 @@ def run_agent(request, max_steps: int = 50):
 
     log_step("Agent started")
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(extra_instructions=user_task, tools_info=tools_info)
+        SafeDict(task_description=user_task, tools_info=tools_info)
     )
 
     for step in range(max_steps):
@@ -144,7 +144,7 @@ def run_agent(request, max_steps: int = 50):
 
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(
-                extra_instructions=user_task,
+                task_description=user_task,
                 tools_info=tools_info,
                 latest_history=memory.get_combined_history()
             )
@@ -243,28 +243,28 @@ def run_agent_stream(request, max_steps: int = 50):
         tool_manager.tools = tools
 
     # 获取 LLM
-    llm = LLM(base_url=request.get("model_url"), api_key=request.get("api_key"))
+    llm = LLM(model_name=request.get("model_name"),base_url=request.get("model_url"), api_key=request.get("api_key"))
 
     # 用户任务和工具信息
     user_task = request.get("task", "")
     tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
     tools_info["tools"].extend(history_tool_descriptor()["tools"])
-    uv.set(user_id, "tools_info", tools_info)
+    # uv.set(user_id, "tools_info", tools_info)
 
     yield {"status": "info", "message": "Agent 已启动"}
     log_step("Agent started")
 
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-        SafeDict(extra_instructions=user_task, tools_info=tools_info)
+        SafeDict(task_description=user_task, tools_info=tools_info)
     )
-
+    print(tools_info)
     for step in range(max_steps):
         yield {"status": "step", "step": step + 1}
         log_step(f"Step {step + 1}")
-
+        task_step_prompt = uv.get(user_id, "task_step_prompt") or ""
         # 1️⃣ 流式获取模型输出并解析
-        output_stream = llm.generate_stream(SYSTEM_PROMPT, TASK_description, USER_PROMPT)
+        output_stream = llm.generate_stream(SYSTEM_PROMPT, task_step_prompt, USER_PROMPT)
         thought, action, action_input, answer = None, None, None, None
 
         for parsed in parse_llm_output_stream(output_stream):
@@ -286,7 +286,7 @@ def run_agent_stream(request, max_steps: int = 50):
 
         # 3️⃣ 行动 Action 工具
         observation = None
-        if action:
+        if action and action != "None":
             try:
                 observation = tool_manager.call(action, **(action_input or {}))
                 yield {"status": "observation", "value": observation}
@@ -296,15 +296,32 @@ def run_agent_stream(request, max_steps: int = 50):
                 yield {"status": "error", "message": observation}
                 log_step(f"Observation: {observation}")
 
-        # 4️⃣ 更新历史记录
+        # 4️⃣ 整理历史记录
         summary = f"第{step+1}轮:\nThought: {thought or '无'}\nAction: {action or '无'}\nAction Input: {action_input or '无'}\nObservation: {observation or '无'}"
-        memory.add(thought, action, action_input, observation, summary)
+
+        # 使用现有 COMPRESS_PROMPT 作为整理提示词
+        organize_prompt = COMPRESS_PROMPT.format_map({"Summary": summary})
+
+        # 只返回整理进度，不返回具体内容
+        try:
+            # 流式调用 LLM（不拼接内容）
+            response_stream = llm.compress_observation_stream(organize_prompt)
+            for _ in response_stream:
+                yield {"status": "organizing", "message": "正在整理历史信息中..."}
+        except Exception as e:
+            yield {"status": "error", "message": f"整理历史信息失败: {str(e)}"}
+
+        # 最终整理结果（非流式获取）存入 memory
+        organized_text = llm.compress_observation(organize_prompt)
+        memory.add(thought, action, action_input, observation, organized_text)
 
         # 5️⃣ 更新 USER_PROMPT
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-            SafeDict(extra_instructions=user_task,
+            SafeDict(task_description="",
                      tools_info=tools_info,
                      latest_history=memory.get_combined_history())
         )
+        print(tools_info)
 
     yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
+    memory.clear()

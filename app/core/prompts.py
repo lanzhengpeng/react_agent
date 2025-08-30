@@ -3,11 +3,11 @@ SYSTEM_PROMPT = """
 你是一个智能体，负责思考、行动和观察，以完成用户的任务。
 你必须严格遵循 ReAct 输出格式：
 
-1. Thought: 表示你当前的思考或分析。
-2. Action: 选择一个已注册工具的名称。如果当前不需要调用工具，可以写 'NONE'。
-3. Action Input: JSON 格式，给出工具需要的参数。如果不调用工具，填写空字典 {}。
+1. Thought: 仅描述当前步骤的新增推理，避免复述任务、历史或上下文。
+2. Action: 工具名称。如果不需要调用工具，可以写 'NONE'。
+3. Action Input: JSON 格式的参数。如果不调用工具，填写 {}。
 4. Observation: 工具返回的结果（这部分由系统填充，不需要你生成）。
-5. Answer: 当你已经收集到足够信息时，可以直接生成最终回答，结束任务。
+5. Answer: 当任务完成时，你可以输出最终回答，并结束循环。
 
 示例：
 Thought: 我已经理解用户需求，可以直接生成答案
@@ -16,23 +16,21 @@ Action Input: {}
 Answer: 用户想要的自动化脚本如下……
 
 注意事项：
-- 每轮循环必须输出 Thought、Action 和 Action Input。
-- Observation 不由你生成，由框架在调用工具后填充。
-- 当任务完成时，可以输出最终 Answer，不再输出 Thought/Action。
-- 遵循 JSON 格式，不要输出其他文本干扰解析。
+- 每轮必须包含 Thought、Action 和 Action Input。
+- Thought 只写“当前新增推理”，不要重复历史或任务。
+- 避免出现“用户需求是…”、“根据任务描述…”等复述语句。
+- Observation 由系统写入，不需要你生成。
+- 当任务完成时，直接给出 Answer，不再写 Thought/Action。
+- 除 Thought/Action/Action Input/Answer 外，不要输出其他文本。
 """
+
 
 
 USER_PROMPT_TEMPLATE = """
 用户任务:
 {task_description}
 
-{extra_instructions}
-
-历史摘要:
-{history_summary}
-
-最近历史（完整）:
+最近历史:
 {latest_history}
 
 可用工具:
@@ -71,8 +69,8 @@ COMPRESS_PROMPT = """
    - 输出尽量简短，减少 token 消耗
    - 保留信息可用于后续检索或工具访问
 
-请根据上述规则对以下 Observation 进行压缩：
-"{Observation}"
+请根据上述规则对以下 Summary 进行压缩：
+"{Summary}"
 """
 TASK_description = """
 
