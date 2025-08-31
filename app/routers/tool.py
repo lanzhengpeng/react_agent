@@ -55,6 +55,26 @@ def register_tools(request: OpenAPIRegisterRequest, current_user: User = Depends
     except Exception as e:
         return ToolRegisterResponse(success=False, message=str(e))
 
+# ------------------ 工具清空接口 ------------------
+@router.delete("/clear_tools", response_model=ToolRegisterResponse)
+def clear_tools(current_user: User = Depends(get_current_user)):
+    """
+    清空当前用户所有工具，包括 tools 和 tools_info
+    """
+    try:
+        uv = UserVars()
+        user_id = current_user.id
+
+        # 删除 tools 和 tools_info
+        uv.set(user_id, "tools", {})
+        uv.set(user_id, "tools_info", {})
+
+        return ToolRegisterResponse(
+            success=True,
+            message=f"已清空用户 {current_user.username} 的所有工具"
+        )
+    except Exception as e:
+        return ToolRegisterResponse(success=False, message=str(e))
 
 # ------------------ 工具测试接口 ------------------
 @router.post("/test")

@@ -235,7 +235,9 @@ def run_agent_stream(request, max_steps: int = 50):
 
     # 获取用户工具
     tools = uv.get(user_id, "tools", {})
-    tools.update(register_history_tools(memory))
+    # 不再用这个工具了
+    # tools.update(register_history_tools(memory))
+
     uv.set(user_id, "tools", tools)
 
     # 获取或创建 ToolManager
@@ -261,7 +263,8 @@ def run_agent_stream(request, max_steps: int = 50):
     add_record(user_id,user_task,"user",db)
     tools_info = uv.get(user_id, "tools_info", {})
     tools_info.setdefault("tools", [])
-    tools_info["tools"].extend(history_tool_descriptor()["tools"])
+    # 不再用获取历史轮数工具
+    # tools_info["tools"].extend(history_tool_descriptor()["tools"])
     # uv.set(user_id, "tools_info", tools_info)
 
     yield {"status": "info", "message": "Agent 已启动"}
@@ -270,7 +273,7 @@ def run_agent_stream(request, max_steps: int = 50):
     USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
         SafeDict(task_description=task, tools_info=tools_info)
     )
-    print(tools_info)
+    # print(tools_info)
     for step in range(max_steps):
         yield {"status": "step", "step": step + 1}
         log_step(f"Step {step + 1}")
@@ -327,14 +330,15 @@ def run_agent_stream(request, max_steps: int = 50):
         # 最终整理结果（非流式获取）存入 memory
         organized_text = llm.compress_observation(organize_prompt)
         memory.add(thought, action, action_input, observation, organized_text)
-
+        # print("压缩的信息")
+        # print(organized_text)
         # 5️⃣ 更新 USER_PROMPT
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(task_description="",
                      tools_info=tools_info,
                      latest_history=memory.get_combined_history())
         )
-        print(tools_info)
+        # print(tools_info)
 
     yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
     memory.clear()
