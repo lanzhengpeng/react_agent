@@ -14,12 +14,22 @@ class SafeDict(dict):
         return ""
 
 
+import json
+
 def parse_llm_output_stream(output_stream):
-    """流式解析 LLM 输出"""
+    """流式解析 LLM 输出（流水线 ReAct），忽略 Observation，由工具返回"""
     full_output = "".join(output_stream)
-    result = {"thought": None, "action": None, "action_input": None, "answer": None}
+
+    result = {
+        "thought": None,
+        "action": None,
+        "action_input": None,
+        "step_result": None,
+        "answer": None
+    }
+
     current_field = None
-    field_lines = {"thought": [], "action": [], "action_input": [], "answer": []}
+    field_lines = {key: [] for key in result.keys()}
 
     for line in full_output.split("\n"):
         line_strip = line.strip()
@@ -32,6 +42,9 @@ def parse_llm_output_stream(output_stream):
         elif line_strip.startswith("Action Input:"):
             current_field = "action_input"
             field_lines[current_field].append(line_strip[len("Action Input:"):].strip())
+        elif line_strip.startswith("Step_Result:"):
+            current_field = "step_result"
+            field_lines[current_field].append(line_strip[len("Step_Result:"):].strip())
         elif line_strip.startswith("Answer:"):
             current_field = "answer"
             field_lines[current_field].append(line_strip[len("Answer:"):].strip())
@@ -46,6 +59,7 @@ def parse_llm_output_stream(output_stream):
             result["action_input"] = json.loads("\n".join(field_lines["action_input"]))
         except:
             result["action_input"] = None
+    result["step_result"] = "\n".join(field_lines["step_result"]).strip() or None
     result["answer"] = "\n".join(field_lines["answer"]).strip() or None
 
     for key, value in result.items():
@@ -88,12 +102,6 @@ class Agent:
         self.chat_service.add_record(user_task, "user")
 
         yield {"status": "info", "message": "Agent 已启动"}
-        # USER_PROMPT = USER_PROMPT_TEMPLATE.format(
-        #      task_description="暂无聊天记录",
-        #     tools_info="{}",
-        # thinking_process="暂无思考过程"
-        # )
-        # print(USER_PROMPT, flush=True)
 
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
             SafeDict(task_description=task,
@@ -114,17 +122,22 @@ class Agent:
             # 解析大模型输出
             for parsed in parse_llm_output_stream(output_stream):
                 yield parsed
-                if parsed["status"] == "thought":
-                    thought = parsed["value"]
-                elif parsed["status"] == "action":
-                    action = parsed["value"]
-                elif parsed["status"] == "action_input":
-                    action_input = parsed["value"]
-                elif parsed["status"] == "answer":
-                    answer = parsed["value"]
+                status = parsed["status"]
+                value = parsed["value"]
+
+                if status == "thought":
+                    thought = value
+                elif status == "action":
+                    action = value
+                elif status == "action_input":
+                    action_input = value
+                elif status == "step_result":
+                    step_result = value  # 保存中间逻辑结果
+                elif status == "answer":
+                    answer = value
 
             if answer:
-                self.memory.add(thought, action, action_input, None, None)
+                # self.memory.add(thought, action, action_input, None, None)
                 # 保存 assistant 回复
                 self.chat_service.add_record(answer, "assistant")
                 yield {"status": "final", "result": answer}
@@ -140,16 +153,17 @@ class Agent:
                     observation = f"工具调用失败: {e}"
                     yield {"status": "error", "message": observation}
 
-            round_record = (f"第{step+1}轮:\n"
+            step_record = (f"第{step+1}步:\n"
                             f"Thought: {thought or '无'}\n"
                             f"Action: {action or '无'}\n"
                             f"Action Input: {action_input or '无'}\n"
+                            f"step_result:{step_result or '无'}\n"
                             f"Observation: {observation or '无'}")
             # 使用现有 COMPRESS_PROMPT 作为整理提示词
             organize_prompt = COMPRESS_PROMPT.format_map(
-                {"round_record": round_record})
+                {"step_record": step_record})
             summary = self.llm.compress_observation(organize_prompt)
-            self.memory.add(thought, action, action_input, observation,
+            self.memory.add(thought, action, action_input, step_result,observation,
                             summary)
 
             # 更新提示词

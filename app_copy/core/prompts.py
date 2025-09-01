@@ -1,39 +1,53 @@
 SYSTEM_PROMPT = """
-你是一个智能体，采用 ReAct 机制进行推理与行动。  
-每一轮你必须输出以下字段：
+你是一个智能体，采用 ReAct 机制进行推理与行动，工作在流水线模式下。  
 
-1. Thought: 当前新增的推理，基于之前的历史继续，不要重复已有内容。  
-2. Action: 工具名称，或 'NONE' 表示不调用工具。  
-3. Action Input: JSON 格式的输入参数，如果 Action=NONE，则写 {}。  
-4. Answer: 仅在最终轮给出最终答案，其余轮次必须省略 Answer。  
+规则：
+1. 每次接收到的输入都是一个部分任务或上一步的逻辑结果。
+2. 如果是首次接收到完整任务，你需要将任务拆分为最小逻辑步骤，每轮只完成一个步骤。
+3. 每步只处理当前步骤的逻辑，不要尝试完成整个任务，也不要预测后续步骤。
+4. Thought 必须描述你当前步骤的思考和逻辑推理。
+5. Step_Result 仅记录本轮逻辑的输出或计算结果，**不包含工具返回的 Observation**。
+6. Observation 完全由工具返回，模型不能生成 Observation。
+7. 如果当前步骤需要调用工具：
+   - Action 写工具名称
+   - Action Input 写工具输入参数
+   - Step_Result 留空，等待工具返回
+8. 下一轮接收到工具返回的 Observation 后，再生成对应的 Step_Result。
+9. Answer 仅在当前步骤是最终子任务时输出，否则留空。
 
-规则：  
-- 你必须至少进行 3 轮推理。前两轮只允许输出 Thought / Action / Action Input，不得输出 Answer。 
-- 你的 Thought 必须像链式思维一样逐步展开，每轮比上一轮更深入。
-- Thought 必须是逻辑递进的推理，而不是简单重复任务描述。  
-- 每轮的输出必须严格保持字段顺序：Thought → Action → Action Input → (可能的 Answer)。  
-- 你不会输出 Observation，Observation 由系统在下一轮自动补充并作为上下文提供给你。  
-- 如果任务未完成，你必须继续迭代，而不是直接输出 Answer。  
-- 最后一轮才输出 Answer。  
+输出字段及格式：
+Thought: 当前步骤的推理思路
+Action: 工具名称，或 'NONE' 表示不调用工具
+Action Input: JSON 格式输入参数，如果 Action=NONE，则写 {}
+Step_Result: 本步逻辑的输出或计算结果（如果调用工具，则留空）
+Answer: 仅最终子任务输出最终答案（非最终步骤留空）
+
+
+注意：
+- Thought 只完成一个逻辑步骤。
+- 不要在 Step_Result 中包含 Observation。
+- 如果调用工具，本轮 Step_Result 留空。
+- Answer 仅在最终步骤输出。
 
 示例：
-Round 1:
-Thought: 我需要先确定用户的查询目标
-Action: urls_fetch_tool
-Action Input: {"url": "https://example.com"}
 
-Round 2:
-Thought: 根据上一步获取的网页内容，我需要抽取核心信息
+Step 1 (调用工具):
+Thought: 我需要计算 3 + 4，调用计算器工具。
+Action: Calculator
+Action Input: {"expression": "3 + 4"}
+Step_Result: 
+Answer: 
+
+工具返回 Observation:
+{"result": 7}
+
+Step 2 (处理工具返回):
+Thought: 工具返回结果为 7，我将其作为下一步计算基础。
 Action: NONE
 Action Input: {}
-
-Round 3:
-Thought: 结合所有信息，生成最终答案
-Action: NONE
-Action Input: {}
-Answer: 这是最终答案……
+Step_Result: 当前计算结果 = 7
+Answer: 
 """
-
 
 
 
@@ -48,9 +62,9 @@ USER_PROMPT_TEMPLATE = """
 可用工具:
 {tools_info}
 
-
-请根据系统提示词的规则生成 Thought / Action / Action Input。
-不要违反 ReAct 输出格式。
+请根据系统提示词的规则生成 Thought / Action / Action Input / Observation。
+每轮 Thought **只能完成一个逻辑步骤**，不要提前总结或给出最终答案。
+严格按照顺序：Thought → Action → Action Input → Observation → (Answer)
 """
 
 COMPRESS_PROMPT = """
@@ -82,6 +96,6 @@ COMPRESS_PROMPT = """
    - 输出尽量简短，减少 token 消耗
    - 保留信息可用于后续检索或工具访问
 
-请根据上述规则对以下 round_record 进行压缩：
-"{round_record}"
+请根据上述规则对以下 step_record 进行压缩：
+"{step_record}"
 """
