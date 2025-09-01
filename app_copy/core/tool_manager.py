@@ -11,10 +11,26 @@ class ToolManager:
         调用已注册的工具
         """
         if tool_name not in self.tools:
-            raise Exception(f"Tool {tool_name} not found")
+            return {
+                "status": "error",
+                "message": f"工具调用失败: Tool '{tool_name}' 未找到，请检查工具名和参数列表"
+            }
 
         func = self.tools[tool_name].get("func")
         if not func:
-            raise Exception(f"Tool {tool_name} 没有实现调用函数")
+            return {
+                "status": "error",
+                "message": f"工具调用失败: Tool '{tool_name}' 没有实现调用函数，请检查工具名和参数列表"
+            }
 
-        return func(**kwargs)
+        try:
+            result = func(**kwargs)
+            return {
+                "status": "success",
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"工具调用失败: {e}，请检查工具名和参数列表"
+            }
