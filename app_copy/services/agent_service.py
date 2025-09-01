@@ -88,9 +88,17 @@ class Agent:
         self.chat_service.add_record(user_task, "user")
 
         yield {"status": "info", "message": "Agent 已启动"}
+        # USER_PROMPT = USER_PROMPT_TEMPLATE.format(
+        #      task_description="暂无聊天记录",
+        #     tools_info="{}",
+        # thinking_process="暂无思考过程"
+        # )
+        # print(USER_PROMPT, flush=True)
 
         USER_PROMPT = USER_PROMPT_TEMPLATE.format_map(
-            SafeDict(task_description=task, tools_info=self.tools_info))
+            SafeDict(task_description=task,
+                     tools_info=self.tools_info,
+                     thinking_process="暂无思考过程"))
         # 测试看输入
         print(USER_PROMPT)
         for step in range(max_steps):

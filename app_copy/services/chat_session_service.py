@@ -62,12 +62,18 @@ class ChatSessionService:
     def format_history(self, user_task: str, separator: str = "\n-------\n用户任务:\n") -> str:
         """
         将用户聊天历史格式化为带角色标签、多轮分隔符的字符串，拼接当前任务
+        如果没有历史记录，会提示“暂无聊天记录”
         """
         chat_history = self.get_records()
         formatted_messages = []
-        for msg in chat_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            content = msg.get("message_content", "")
-            formatted_messages.append(f"[{role}]: {content}")
+
+        if not chat_history:
+            formatted_messages.append("暂无聊天记录")
+        else:
+            for msg in chat_history:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                content = msg.get("message_content", "")
+                formatted_messages.append(f"[{role}]: {content}")
 
         return "\n".join(formatted_messages) + separator + f"[User Task]: {user_task}"
+
