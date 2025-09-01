@@ -1,0 +1,473 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "FastAPI 模板",
+        "description": "这是一个FastAPI模板，用于快速开发接口",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/get_idea_by_need": {
+            "post": {
+                "summary": "Get Idea By Need",
+                "operationId": "get_idea_by_need_get_idea_by_need_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NeedRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_fun_by_idea": {
+            "post": {
+                "summary": "Get Fun By Idea",
+                "description": "根据 idea 搜索对应的 fun",
+                "operationId": "get_fun_by_idea_get_fun_by_idea_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/IdeaRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_fun_detail": {
+            "post": {
+                "summary": "Get Fun Detail",
+                "description": "根据函数名获取函数详细信息，只返回指定字段。\n如果精确查不到，就走向量模糊匹配，并提示“可能的函数”。",
+                "operationId": "get_fun_detail_get_fun_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FunDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_enum_detail": {
+            "post": {
+                "summary": "Get Enum Detail",
+                "description": "根据枚举名获取枚举详细信息，只返回指定字段",
+                "operationId": "get_enum_detail_get_enum_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EnumDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_structure_detail": {
+            "post": {
+                "summary": "Get Structure Detail",
+                "description": "根据结构体名获取结构体详细信息，只返回指定字段",
+                "operationId": "get_structure_detail_get_structure_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StructureDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_callback_detail": {
+            "post": {
+                "summary": "Get Callback Detail",
+                "description": "根据回调函数名获取详细信息",
+                "operationId": "get_callback_detail_get_callback_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CallbackDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/get_union_detail": {
+            "post": {
+                "summary": "Get Union Detail",
+                "description": "根据联合体名获取详细信息",
+                "operationId": "get_union_detail_get_union_detail_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnionDetailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CallbackDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Limit",
+                        "default": 10
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "CallbackDetailRequest"
+            },
+            "EnumDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "title": "Limit",
+                        "default": 2
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "EnumDetailRequest"
+            },
+            "FunDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "title": "Limit",
+                        "default": 1
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "FunDetailRequest"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "IdeaRequest": {
+                "properties": {
+                    "idea": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Idea"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "title": "Limit",
+                        "default": 20
+                    }
+                },
+                "type": "object",
+                "title": "IdeaRequest"
+            },
+            "NeedRequest": {
+                "properties": {
+                    "need": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Need"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "title": "Limit",
+                        "default": 20
+                    }
+                },
+                "type": "object",
+                "title": "NeedRequest"
+            },
+            "StructureDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Limit",
+                        "default": 10
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "StructureDetailRequest"
+            },
+            "UnionDetailRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "limit": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Limit",
+                        "default": 10
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "UnionDetailRequest"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}

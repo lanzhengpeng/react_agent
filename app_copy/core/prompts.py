@@ -27,10 +27,6 @@ Answer:
 
 
 
-
-
-
-
 USER_PROMPT_TEMPLATE = """
 聊天记录:
 {task_description}

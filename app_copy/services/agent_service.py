@@ -83,7 +83,7 @@ class Agent:
         self.db = db
         self.memory = Memory()
         self.user_vars = UserVars()
-
+        self.uv = UserVars()  # ✅ 初始化 uv
         # 聊天记录服务（每个用户独立）
         self.chat_service = ChatSessionService(user_id, db)
 
@@ -101,6 +101,17 @@ class Agent:
         # 工具信息
         self.tools_info = self.user_vars.get(user_id, "tools_info", "暂无工具")
 
+    # ---------------- 设置任务步骤提示词 ----------------
+    def set_task_step_prompt(self, task_step_prompt: str):
+        """
+        保存当前用户的任务步骤提示词
+        """
+        try:
+            self.uv.set(self.user_id, "task_step_prompt", task_step_prompt)
+            return True
+        except Exception as e:
+            raise RuntimeError(f"保存失败: {e}")
+
     def run_stream(self, user_task: str, max_steps: int = 50):
         """流式运行 Agent"""
 
@@ -116,7 +127,7 @@ class Agent:
             SafeDict(task_description=task,
                      tools_info=self.tools_info,
                      thinking_process="暂无思考过程"))
-        
+
         for step in range(max_steps):
             yield {"status": "step", "step": step + 1}
             log_step(f"Step {step + 1}")
@@ -127,7 +138,7 @@ class Agent:
                                                      TASK_STEP_PROMPT,
                                                      USER_PROMPT)
             # 测试看输入
-            
+
             thought = action = action_input = answer = None
             # 解析大模型输出
             for parsed in parse_llm_output_stream(output_stream):
@@ -144,7 +155,7 @@ class Agent:
                 elif status == "answer":
                     answer = value
 
-            if answer and answer !="NONE":
+            if answer and answer != "NONE":
                 # 保存 assistant 回复
                 self.chat_service.add_record(answer, "assistant")
                 yield {"status": "final", "result": answer}
@@ -161,15 +172,15 @@ class Agent:
                     yield {"status": "error", "message": observation}
 
             step_record = (f"第{step+1}步:\n"
-                            f"Thought: {thought or '无'}\n"
-                            f"Action: {action or '无'}\n"
-                            f"Action Input: {action_input or '无'}\n"
-                            f"Observation: {observation or '无'}")
+                           f"Thought: {thought or '无'}\n"
+                           f"Action: {action or '无'}\n"
+                           f"Action Input: {action_input or '无'}\n"
+                           f"Observation: {observation or '无'}")
             # 使用现有 COMPRESS_PROMPT 作为整理提示词
             organize_prompt = COMPRESS_PROMPT.format_map(
                 {"step_record": step_record})
             summary = self.llm.compress_observation(organize_prompt)
-            self.memory.add(thought, action, action_input,observation,
+            self.memory.add(thought, action, action_input, observation,
                             summary)
 
             # 更新提示词
@@ -177,6 +188,6 @@ class Agent:
                 SafeDict(task_description=task,
                          tools_info=self.tools_info,
                          thinking_process=self.memory.get_combined_history()))
-           
+
         self.memory.clear()
         yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}
