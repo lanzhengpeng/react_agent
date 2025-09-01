@@ -17,21 +17,26 @@ class SafeDict(dict):
 import json
 
 def parse_llm_output_stream(output_stream):
-    """流式解析 LLM 输出（流水线 ReAct），忽略 Observation，由工具返回"""
-    full_output = "".join(output_stream)
+    """
+    流式解析模型输出，先收集所有块，解析后再流式返回 Thought / Action / Action Input / Answer
+    """
+    # 收集所有流式输入块
+    full_output = ""
+    for chunk in output_stream:
+        full_output += chunk  # 无进度通知，直接收集
 
+    # 使用原始的 parse_llm_output 逻辑解析完整输出
     result = {
         "thought": None,
         "action": None,
         "action_input": None,
-        "step_result": None,
         "answer": None
     }
-
     current_field = None
-    field_lines = {key: [] for key in result.keys()}
+    field_lines = {"thought": [], "action": [], "action_input": [], "answer": []}
 
-    for line in full_output.split("\n"):
+    lines = full_output.split("\n")
+    for line in lines:
         line_strip = line.strip()
         if line_strip.startswith("Thought:"):
             current_field = "thought"
@@ -42,9 +47,6 @@ def parse_llm_output_stream(output_stream):
         elif line_strip.startswith("Action Input:"):
             current_field = "action_input"
             field_lines[current_field].append(line_strip[len("Action Input:"):].strip())
-        elif line_strip.startswith("Step_Result:"):
-            current_field = "step_result"
-            field_lines[current_field].append(line_strip[len("Step_Result:"):].strip())
         elif line_strip.startswith("Answer:"):
             current_field = "answer"
             field_lines[current_field].append(line_strip[len("Answer:"):].strip())
@@ -52,6 +54,7 @@ def parse_llm_output_stream(output_stream):
             if current_field:
                 field_lines[current_field].append(line_strip)
 
+    # 处理结果
     result["thought"] = "\n".join(field_lines["thought"]).strip() or None
     result["action"] = "\n".join(field_lines["action"]).strip() or None
     if field_lines["action_input"]:
@@ -59,12 +62,18 @@ def parse_llm_output_stream(output_stream):
             result["action_input"] = json.loads("\n".join(field_lines["action_input"]))
         except:
             result["action_input"] = None
-    result["step_result"] = "\n".join(field_lines["step_result"]).strip() or None
     result["answer"] = "\n".join(field_lines["answer"]).strip() or None
 
-    for key, value in result.items():
-        if value:
-            yield {"status": key, "value": value}
+    # 流式返回解析结果的每个部分
+    if result["thought"]:
+        yield {"status": "thought", "value": result["thought"]}
+    if result["action"]:
+        yield {"status": "action", "value": result["action"]}
+    if result["action_input"]:
+        yield {"status": "action_input", "value": result["action_input"]}
+    if result["answer"]:
+        yield {"status": "answer", "value": result["answer"]}
+
 
 
 class Agent:
@@ -90,7 +99,7 @@ class Agent:
                        api_key=model_config.get("api_key", "qwe"))
 
         # 工具信息
-        self.tools_info = self.user_vars.get(user_id, "tools_info", {})
+        self.tools_info = self.user_vars.get(user_id, "tools_info", "暂无工具")
 
     def run_stream(self, user_task: str, max_steps: int = 50):
         """流式运行 Agent"""
@@ -107,8 +116,7 @@ class Agent:
             SafeDict(task_description=task,
                      tools_info=self.tools_info,
                      thinking_process="暂无思考过程"))
-        # 测试看输入
-        print(USER_PROMPT)
+        
         for step in range(max_steps):
             yield {"status": "step", "step": step + 1}
             log_step(f"Step {step + 1}")
@@ -118,26 +126,25 @@ class Agent:
             output_stream = self.llm.generate_stream(SYSTEM_PROMPT,
                                                      TASK_STEP_PROMPT,
                                                      USER_PROMPT)
+            # 测试看输入
+            
             thought = action = action_input = answer = None
             # 解析大模型输出
             for parsed in parse_llm_output_stream(output_stream):
                 yield parsed
+                print(parsed)
                 status = parsed["status"]
                 value = parsed["value"]
-
                 if status == "thought":
                     thought = value
                 elif status == "action":
                     action = value
                 elif status == "action_input":
                     action_input = value
-                elif status == "step_result":
-                    step_result = value  # 保存中间逻辑结果
                 elif status == "answer":
                     answer = value
 
-            if answer:
-                # self.memory.add(thought, action, action_input, None, None)
+            if answer and answer !="NONE":
                 # 保存 assistant 回复
                 self.chat_service.add_record(answer, "assistant")
                 yield {"status": "final", "result": answer}
@@ -157,13 +164,12 @@ class Agent:
                             f"Thought: {thought or '无'}\n"
                             f"Action: {action or '无'}\n"
                             f"Action Input: {action_input or '无'}\n"
-                            f"step_result:{step_result or '无'}\n"
                             f"Observation: {observation or '无'}")
             # 使用现有 COMPRESS_PROMPT 作为整理提示词
             organize_prompt = COMPRESS_PROMPT.format_map(
                 {"step_record": step_record})
             summary = self.llm.compress_observation(organize_prompt)
-            self.memory.add(thought, action, action_input, step_result,observation,
+            self.memory.add(thought, action, action_input,observation,
                             summary)
 
             # 更新提示词
@@ -171,7 +177,6 @@ class Agent:
                 SafeDict(task_description=task,
                          tools_info=self.tools_info,
                          thinking_process=self.memory.get_combined_history()))
-            print("\n-----------------------\n")
-            print(USER_PROMPT)
+           
         self.memory.clear()
         yield {"status": "final", "result": "未得到最终答案，请增加 max_steps 或检查模型输出"}

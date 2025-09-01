@@ -6,7 +6,7 @@ class Memory:
         # 保存摘要历史，每轮是一个字符串
         self.summary_history = []
 
-    def add(self, thought, action, action_input, step_result, observation, summary):
+    def add(self, thought, action, action_input, observation, summary):
         """
         添加一轮交互信息
         """
@@ -15,12 +15,12 @@ class Memory:
             "thought": thought,
             "action": action,
             "action_input": action_input,
-            "step_result": step_result,  # 新增字段
             "observation": observation
         }
 
         self.full_history.append(step_data)
         self.summary_history.append(summary)
+
 
 
     def get_full_history(self):
@@ -37,12 +37,12 @@ class Memory:
         self.summary_history = []
 
     def get_combined_history(
-            self,
-            recent_steps: int = 5,
-            step_separator: str = "\n-------\n",
-            summary_start: str = "\n" + "=" * 40 + " 思考过程摘要开始 " + "=" * 40 + "\n",
-            summary_end: str = "\n" + "=" * 40 + " 思考过程摘要结束，以下是最近几步完整思考过程 " + "=" * 40 + "\n"
-        ) -> str:
+        self,
+        recent_steps: int = 5,
+        step_separator: str = "\n-------\n",
+        summary_start: str = "\n" + "=" * 40 + " 思考过程摘要开始 " + "=" * 40 + "\n",
+        summary_end: str = "\n" + "=" * 40 + " 思考过程摘要结束，以下是最近几步完整思考过程 " + "=" * 40 + "\n"
+    ) -> str:
         """
         获取思考过程摘要 + 最近 n 步完整思考过程
         recent_steps: 最近多少步显示完整信息
@@ -70,10 +70,14 @@ class Memory:
                 f"Thought: {item.get('thought', '无')}\n"
                 f"Action: {item.get('action', '无')}\n"
                 f"ActionInput: {item.get('action_input', '无')}\n"
-                f"Step_Result: {item.get('step_result', '无')}\n"
                 f"Observation: {item.get('observation', '无')}"
             )
             lines.append(line)
 
+        # 动态生成下一步提示
+        next_step = total_steps + 1
+        lines.append(f"\n第 {next_step} 步思考开始，请根据以上思考继续下一步。")
+
         return step_separator.join(lines)
+
 
