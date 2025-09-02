@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from models.chat_session_model import ChatSession
 from models.user_model import User
-
+from models.tool_model import Tool
 SQLALCHEMY_DATABASE_URL = "sqlite:///./database/react_agent.db"
 
 engine = create_engine(

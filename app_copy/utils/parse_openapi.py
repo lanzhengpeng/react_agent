@@ -6,7 +6,7 @@ def parse_openapi_tools(openapi_json, base_url):
     openapi_json: FastAPI /openapi.json 返回的 JSON
     base_url: FastAPI 服务地址，例如 "http://127.0.0.1:8000"
     返回：
-        tool_registry: dict {tool_name: {"func": func, "parameters": {...}, "description": str}}
+        tool_registry: dict {tool_name: {"func": func, "parameters": {...}, "description": str, "url": str, "method": str}}
     """
     tool_registry = {}
     paths = openapi_json.get("paths", {})
@@ -28,13 +28,11 @@ def parse_openapi_tools(openapi_json, base_url):
             required_fields = []
 
             if "$ref" in schema:
-                # 通过 $ref 获取 schema
                 schema_name = schema["$ref"].split("/")[-1]
                 schema_def = components.get(schema_name, {})
                 props = schema_def.get("properties", {})
                 required_fields = schema_def.get("required", [])
             elif "properties" in schema:
-                # schema 内联定义参数
                 props = schema.get("properties", {})
                 required_fields = schema.get("required", [])
 
@@ -46,10 +44,12 @@ def parse_openapi_tools(openapi_json, base_url):
                     "required": k in required_fields
                 }
 
+            # 完整 URL
+            full_url = f"{base_url}{path}"
+
             # 生成可调用函数
-            def make_func(base_url, path, method):
+            def make_func(url, method):
                 def func(**kwargs):
-                    url = f"{base_url}{path}"
                     if method.lower() == "get":
                         r = httpx.get(url, params=kwargs)
                     else:
@@ -61,11 +61,13 @@ def parse_openapi_tools(openapi_json, base_url):
                         return r.text
                 return func
 
-            # 注册工具
+            # 注册工具，同时保存完整 URL 和 method
             tool_registry[tool_name] = {
-                "func": make_func(base_url, path, method),
+                "func": make_func(full_url, method),
                 "parameters": parameters,
-                "description": description
+                "description": description,
+                "url": full_url,   # 保存完整请求 URL
+                "method": method
             }
 
     return tool_registry
@@ -75,21 +77,19 @@ def parse_openapi_tools(openapi_json, base_url):
 if __name__ == "__main__":
     import json
 
-    # 假设 openapi.json 已经保存到本地
     with open("openapi.json", "r", encoding="utf-8") as f:
         openapi_json = json.load(f)
 
     base_url = "http://127.0.0.1:8000"
     tools = parse_openapi_tools(openapi_json, base_url)
 
-    # 查看工具信息
     for name, info in tools.items():
         print(f"工具名: {name}")
         print(f"描述: {info['description']}")
         print(f"参数: {info['parameters']}")
+        print(f"请求信息: url={info['url']}, method={info['method']}")
         print("-" * 50)
 
-    # 调用示例
     tool_name = "compileUgCode"
     if tool_name in tools:
         func = tools[tool_name]["func"]
