@@ -143,15 +143,16 @@ class Agent:
             # 解析大模型输出
             for parsed in parse_llm_output_stream(output_stream):
                 yield parsed
-                print(parsed)
                 status = parsed["status"]
                 value = parsed["value"]
                 if status == "thought":
                     thought = value
                 elif status == "action":
                     action = value
+                    print("action:", value)
                 elif status == "action_input":
                     action_input = value
+                    print("action_input:", value)
                 elif status == "answer":
                     answer = value
 

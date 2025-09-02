@@ -20,21 +20,31 @@ def parse_openapi_tools(openapi_json, base_url):
 
             # 参数解析
             parameters = {}
-
-            # requestBody
             request_body = spec.get("requestBody", {})
             content = request_body.get("content", {}).get("application/json", {})
-            schema_ref = content.get("schema", {}).get("$ref")
-            if schema_ref:
-                # 例如 "#/components/schemas/NeedRequest"
-                schema_name = schema_ref.split("/")[-1]
-                schema = components.get(schema_name, {})
-                for k, v in schema.get("properties", {}).items():
-                    parameters[k] = {
-                        "type": v.get("type", "string"),
-                        "description": v.get("title", ""),
-                        "default": v.get("default")
-                    }
+            schema = content.get("schema", {})
+
+            props = {}
+            required_fields = []
+
+            if "$ref" in schema:
+                # 通过 $ref 获取 schema
+                schema_name = schema["$ref"].split("/")[-1]
+                schema_def = components.get(schema_name, {})
+                props = schema_def.get("properties", {})
+                required_fields = schema_def.get("required", [])
+            elif "properties" in schema:
+                # schema 内联定义参数
+                props = schema.get("properties", {})
+                required_fields = schema.get("required", [])
+
+            for k, v in props.items():
+                parameters[k] = {
+                    "type": v.get("type", "string"),
+                    "description": v.get("description", v.get("title", "")),
+                    "default": v.get("default"),
+                    "required": k in required_fields
+                }
 
             # 生成可调用函数
             def make_func(base_url, path, method):
@@ -80,8 +90,8 @@ if __name__ == "__main__":
         print("-" * 50)
 
     # 调用示例
-    tool_name = "get_idea_by_need_get_idea_by_need_post"
+    tool_name = "compileUgCode"
     if tool_name in tools:
         func = tools[tool_name]["func"]
-        result = func(need="生成一个自动化脚本", limit=5)
+        result = func(code="PRINT 'Hello UG';", ugVersion="UG2306")
         print("调用结果:", result)
