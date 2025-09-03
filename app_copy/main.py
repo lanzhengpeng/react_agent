@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import agent_router, tools_router, user_router,chat_session_router
+from routers import agent_router, tools_router, user_router,chat_session_router,task_prompt_router
 from middleware.auth_middleware import auth_middleware
 
 app = FastAPI()
@@ -8,6 +8,7 @@ app.include_router(agent_router.router)
 app.include_router(tools_router.router)
 app.include_router(user_router.router)
 app.include_router(chat_session_router.router)
+app.include_router(task_prompt_router.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
