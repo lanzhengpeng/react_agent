@@ -22,6 +22,10 @@ class ToolInfoResponse(BaseModel):
 class ToolListResponse(BaseModel):
     tools: List[ToolInfoResponse]
 
-# ===== 请求体定义 =====
+
 class SaveToolRequest(BaseModel):
+    tool_name: str
+
+
+class DeleteToolRequest(BaseModel):
     tool_name: str

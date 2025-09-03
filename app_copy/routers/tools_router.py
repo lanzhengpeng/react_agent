@@ -5,14 +5,10 @@ from core.auth import get_current_user
 from services.tool_service import ToolService
 from sqlalchemy.orm import Session
 from core.database import get_db  # 你的 get_db 函数
-from schemas.tool_schema import (
-    OpenAPIRegisterRequest,
-    ToolInfoResponse,
-    ToolListResponse,
-    ToolRegisterResponse,
-    ToolTestRequest,
-    SaveToolRequest
-    )
+from schemas.tool_schema import (OpenAPIRegisterRequest, ToolInfoResponse,
+                                 ToolListResponse, ToolRegisterResponse,
+                                 ToolTestRequest, SaveToolRequest,
+                                 DeleteToolRequest)
 
 router = APIRouter(prefix="/tool")
 
@@ -95,13 +91,26 @@ def save_tool(
 
 # ===== 从数据库加载该用户的所有工具到 UserVars =====
 @router.post("/load")
-def load_tools(
+def load_tools(current_user: User = Depends(get_current_user),
+               db: Session = Depends(get_db)):
+    service = ToolService(db)
+    try:
+        count = service.load_tools_from_db(current_user.id)
+        return {"message": f"成功加载 {count} 个工具到 UserVars"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+# ===== 删除数据库中的工具 =====
+@router.delete("/delete")
+def delete_tool(
+    request: DeleteToolRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     service = ToolService(db)
     try:
-        count = service.load_tools_from_db(current_user.id)
-        return {"message": f"成功加载 {count} 个工具到 UserVars"}
+        service.delete_tool_from_db(current_user.id, request.tool_name)
+        return {"message": f"工具 {request.tool_name} 已从数据库删除"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
