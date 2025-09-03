@@ -6,7 +6,7 @@ from core.tool_manager import ToolManager
 from sqlalchemy.orm import Session
 from models.tool_model import Tool
 import httpx
-
+import json
 
 class ToolService:
 
@@ -24,12 +24,13 @@ class ToolService:
         # 工具本身可以直接 dict update（按 name 覆盖/追加）
         existing_tools.update(new_tools)
 
-        # 工具信息是 list，改为追加
-        if "tools" not in existing_tools_info:
-            existing_tools_info["tools"] = []
-        existing_tools_info["tools"].extend(new_tools_info.get("tools", []))
+        # ---------- 工具信息（list，按 name 覆盖/追加） ----------
+        tools_dict = {tool["name"]: tool for tool in existing_tools_info.get("tools", [])}
+        for tool in new_tools_info.get("tools", []):
+            tools_dict[tool["name"]] = tool
+        existing_tools_info["tools"] = list(tools_dict.values())
 
-        # 存回去
+        # ---------- 存回去 ----------
         self.uv.set(user_id, "tools", existing_tools)
         self.uv.set(user_id, "tools_info", existing_tools_info)
 
@@ -86,19 +87,12 @@ class ToolService:
     # ===== 从数据库加载全部工具到 UserVars =====
     def load_tools_from_db(self, user_id: int):
         """
-        从数据库加载该用户所有工具到 UserVars，同时生成可调用函数
+        从数据库加载该用户所有工具到 UserVars，同时与内存已有工具合并（同名覆盖）
         返回加载的工具数量
         """
         tools = self.db.query(Tool).filter_by(user_id=user_id).all()
 
-        tools_dict = {}
-        tools_info_list = []
-
         def make_func(url, method):
-            """
-            生成可调用函数，url 已经是完整路径
-            """
-
             def func(**kwargs):
                 if method.lower() == "get":
                     r = httpx.get(url, params=kwargs)
@@ -107,31 +101,53 @@ class ToolService:
                 r.raise_for_status()
                 try:
                     return r.json()
-                except:
+                except Exception:
                     return r.text
-
             return func
 
+        # 从数据库生成工具 dict 和 list
+        db_tools_dict = {}
+        db_tools_info = {}
         for t in tools:
-            tools_dict[t.name] = {
-                "func": make_func(t.url, t.method),  # 生成可调用函数
+            schema = t.input_schema
+            if isinstance(schema, str):
+                try:
+                    schema = json.loads(schema)
+                except Exception:
+                    schema = {}
+            db_tools_dict[t.name] = {
+                "func": make_func(t.url, t.method),
                 "description": t.description,
                 "url": t.url,
                 "method": t.method,
-                "parameters": t.input_schema
+                "parameters": schema
             }
-            tools_info_list.append({
+            db_tools_info[t.name] = {
                 "name": t.name,
                 "description": t.description,
                 "url": t.url,
                 "method": t.method,
-                "input_schema": t.input_schema
-            })
+                "input_schema": schema
+            }
 
-        self.uv.set(user_id, "tools", tools_dict)
+        # -------- merge 到内存已有工具 --------
+        existing_tools = self.uv.get(user_id, "tools", {})
+        existing_tools_info = self.uv.get(user_id, "tools_info", {"tools": []})
+
+        # 工具本身（dict，按 name 覆盖/追加）
+        existing_tools.update(db_tools_dict)
+
+        # 工具信息（list，转 dict 按 name 覆盖，再转回 list）
+        tools_info_map = {tool["name"]: tool for tool in existing_tools_info.get("tools", [])}
+        tools_info_map.update(db_tools_info)
+        tools_info_list = list(tools_info_map.values())
+
+        # 存回去
+        self.uv.set(user_id, "tools", existing_tools)
         self.uv.set(user_id, "tools_info", {"tools": tools_info_list})
 
         return len(tools)
+
     # ===== 根据名字删除数据库里的工具 =====
     def delete_tool_from_db(self, user_id: int, tool_name: str):
         """
