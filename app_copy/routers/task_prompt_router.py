@@ -29,9 +29,14 @@ def load_task_step_prompt_endpoint(
 ):
     service = TaskPromptService(db)
     try:
-        service.load_task_step_prompt(current_user.id)
-        return TaskStepPromptResponse(success=True, message="提示词已加载到内存")
+        prompt = service.load_task_step_prompt(current_user.id)  # ✅ 拿到提示词
+        return TaskStepPromptResponse(
+            success=True,
+            message="提示词已加载到内存",
+            prompt=prompt
+        )
     except ValueError as ve:
         return TaskStepPromptResponse(success=False, message=str(ve))
     except Exception as e:
         return TaskStepPromptResponse(success=False, message=f"加载失败: {e}")
+

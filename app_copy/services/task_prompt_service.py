@@ -20,7 +20,7 @@ class TaskPromptService:
         return True
     def load_task_step_prompt(self, user_id: int):
         """
-        从数据库加载提示词到内存
+        从数据库加载提示词到内存，并返回提示词
         """
         prompt = self.db.query(TaskPrompt).filter(TaskPrompt.user_id == user_id).first()
         if not prompt or not prompt.prompt:
@@ -28,4 +28,5 @@ class TaskPromptService:
 
         agent = Agent(user_id=user_id, db=self.db)
         agent.set_task_step_prompt(prompt.prompt)  # ✅ 复用 set_task_step_prompt
-        return True
+
+        return prompt.prompt   # ✅ 把提示词返回出去

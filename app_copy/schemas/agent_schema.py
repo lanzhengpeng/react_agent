@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional
 class ChatRequest(BaseModel):
     session_id: str
     message: str
@@ -21,3 +21,5 @@ class TaskStepPromptRequest(BaseModel):
 class TaskStepPromptResponse(BaseModel):
     success: bool
     message: str
+    prompt: Optional[str] = None   # ✅ 新增字段
+
