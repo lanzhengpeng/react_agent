@@ -10,8 +10,9 @@ from schemas.tool_schema import (
     ToolInfoResponse,
     ToolListResponse,
     ToolRegisterResponse,
-    ToolTestRequest
-)
+    ToolTestRequest,
+    SaveToolRequest
+    )
 
 router = APIRouter(prefix="/tool")
 
@@ -72,10 +73,35 @@ def test_tool(
 
 
 @router.get("/list", response_model=ToolListResponse)
-def get_tools(
-    current_user: User = Depends(get_current_user),
-    tool_service: ToolService = Depends(get_tool_service)
-):
+def get_tools(current_user: User = Depends(get_current_user),
+              tool_service: ToolService = Depends(get_tool_service)):
     tools = tool_service.list_tools(current_user.id)
     tool_list = [ToolInfoResponse(**t) for t in tools]
     return ToolListResponse(tools=tool_list)
+# ===== 保存单个工具到数据库 =====
+@router.post("/save")
+def save_tool(
+    request: SaveToolRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    service = ToolService(db)
+    try:
+        service.save_tool_to_db(current_user.id, request.tool_name)
+        return {"message": f"工具 {request.tool_name} 已保存到数据库"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ===== 从数据库加载该用户的所有工具到 UserVars =====
+@router.post("/load")
+def load_tools(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    service = ToolService(db)
+    try:
+        count = service.load_tools_from_db(current_user.id)
+        return {"message": f"成功加载 {count} 个工具到 UserVars"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

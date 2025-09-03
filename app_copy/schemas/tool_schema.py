@@ -18,5 +18,10 @@ class ToolInfoResponse(BaseModel):
     description: Optional[str] = None
     parameters: Dict[str, Any] = {}
 
+
 class ToolListResponse(BaseModel):
     tools: List[ToolInfoResponse]
+
+# ===== 请求体定义 =====
+class SaveToolRequest(BaseModel):
+    tool_name: str

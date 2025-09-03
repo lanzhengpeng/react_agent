@@ -69,7 +69,7 @@ class ToolService:
 
         tool_obj = self.db.query(Tool).filter_by(user_id=user_id, name=tool_name).first()
         if not tool_obj:
-            tool_obj = Tool(user_id=user_id, name=tool_name, user_id=user_id)
+            tool_obj = Tool(user_id=user_id, name=tool_name)
 
         tool_obj.description = tool_info.get("description")
         tool_obj.url = tool_info.get("url")      # 注意这里改成 url
